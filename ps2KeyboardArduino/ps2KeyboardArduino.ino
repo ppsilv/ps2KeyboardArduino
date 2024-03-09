@@ -24,12 +24,10 @@ void setup()
 		while (1);
 	}
 
-	Serial.write("Lights\n");
-
-  keyboard.setNumLock(true);
+	keyboard.setNumLock();
 	keyboard.handleLeds();
 
-	Serial.write("Completed\n");
+	Serial.write("\n\nInitialization Completed\n");
 }
 
 void loop()
@@ -38,9 +36,10 @@ void loop()
 
 	if (dat != 0){
 		Serial.print(dat);
+    Serial.print(" ");
+    Serial.print(dat,16);
   }
 
   keyboard.handleLeds();
-
-
 }
+

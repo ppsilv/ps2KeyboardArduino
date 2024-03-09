@@ -128,9 +128,10 @@ bool FoxPS2Keyboard::SendByteWithConfirm(byte b, byte ACK, byte Tries, unsigned 
 	return(false);
 }
 
-void FoxPS2Keyboard::setNumLock(bool flag)
+void FoxPS2Keyboard::setNumLock()
 {
-  if( flag ){
+  numlk = !numlk;
+  if( numlk ){
     ledflags |= NUM_LOCK;
   }else{
     ledflags &= !NUM_LOCK;
@@ -140,14 +141,19 @@ void FoxPS2Keyboard::setNumLock(bool flag)
 
 bool FoxPS2Keyboard::SetKeyboardLights() //byte NumLock, byte CapsLock, byte ScrollLock)
 {
-	byte b = 0;
+	byte b = ledflags;
+  /*
 	if (ledflags & CAPS_LOCK)
 		b |= 0x4;
 	if (ledflags & NUM_LOCK)
 		b |= 0x2;
 	if (ledflags & SCROLL_LOCK)
 		b |= 0x1;
-
+  */
+  Serial.print(" ");
+  Serial.print(b, 16);
+  Serial.print(" ");
+  
 	if (SendByteWithConfirm(0xED, 0xFA, 1, 500) == false) //Change Lights
 		return(false);
 
@@ -223,16 +229,17 @@ void FoxPS2Keyboard::handleLeds()
     if ( future_scrollk )
       ledflags |= SCROLL_LOCK;
     else  
-      ledflags &= !SCROLL_LOCK;
+      ledflags &= ~SCROLL_LOCK;
 
     future_scrollk = !future_scrollk;
     SetKeyboardLights();
   }
   if ( cpslk == future_cpslk ){
+    char buf[128];
     if ( future_cpslk )
       ledflags |= CAPS_LOCK;
     else  
-      ledflags &= !CAPS_LOCK;
+      ledflags &= ~CAPS_LOCK;
 
     future_cpslk = !future_cpslk;
     SetKeyboardLights();
@@ -241,15 +248,17 @@ void FoxPS2Keyboard::handleLeds()
     if ( future_numlk )
       ledflags |= NUM_LOCK;
     else  
-      ledflags &= !NUM_LOCK;
+      ledflags &= ~NUM_LOCK;
 
     future_numlk = !future_numlk;
     SetKeyboardLights();
   }
 }
+extern void hnd(void);
 
 void KeyboardISR() //FALLING EDGE
 {
+
 	if (fulldisableisr != 0)
 		return;
 
@@ -338,9 +347,6 @@ void KeyboardISR() //FALLING EDGE
             head = i;
           }
       } 
-      //char fix[26];
-      //sprintf(fix,"h=%d t=%d \n",head,tail);
-      Serial.println(" ");
       teclaStatus = 0;
     }
     Serial.print(" [");    Serial.print(incoming, 16);    Serial.print("] ");

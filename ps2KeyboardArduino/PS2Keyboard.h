@@ -8,6 +8,10 @@
 #define NUM_LOCK      2
 #define CAPS_LOCK     4
 
+#define C_SCROLL_LOCK   ~SCROLL_LOCK
+#define C_NUM_LOCK      ~NUM_LOCK
+#define C_CAPS_LOCK     ~CAPS_LOCK
+
 class FoxPS2Keyboard
 {
 public:
@@ -16,7 +20,7 @@ public:
   byte GetCharcode();
 	void SendByte(byte b);
 	bool WaitForKeyboard();
-  void FoxPS2Keyboard::setNumLock(bool flag);
+  void FoxPS2Keyboard::setNumLock();
   void FoxPS2Keyboard::handleLeds();
 	bool FoxPS2Keyboard::SendByteWithConfirm(byte b, byte ACK, byte Tries, unsigned short Wait);
 	bool FoxPS2Keyboard::SetKeyboardLights( );

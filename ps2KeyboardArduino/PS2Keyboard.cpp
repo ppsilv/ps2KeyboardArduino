@@ -1,4 +1,4 @@
-#include"FoxPS2Keyboard.h"
+#include"PS2Keyboard.h"
 
 #define TransistorIRQPin  6
 #define TransistorDataPin 7
@@ -27,7 +27,19 @@ const char chrsSH[]={
     '0',  '.',  '2',  '5',  '6',  '8',  '\033',0,   0,    '+',  '3',  '-',  '*',  '9',  0,    0,
     0,    0,    0,    247,  0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0};
 
-#define BUFFER_SIZE 45
+const char chrsSH1[]={
+    0,    249,  0,    245,  243,  241,  242,  252,  0,    250,  248,  246,  244,  '\t', '~',  0,
+    0,    0,    0,    0,    0,    'q',  '!',  0,    0,    0,    'z',  's',  'a',  'w',  '@',  0,
+    0,    'c',  'x',  'd',  'e',  '$',  '#',  0,    0,    ' ',  'v',  'f',  't',  'r',  '%',  0,
+    0,    'n',  'b',  'h',  'g',  'y',  '^',  0,    0,    0,    'm',  'j',  'u',  '&',  '*',  0,
+    0,    '<',  'k',  'i',  'O',  ')',  '(',  0,    0,    '>',  '?',  'l',  ':',  'p',  '_',  0,
+    0,    0,    '\"', 0,    '{',  '+',  0,    0,    0,    0,    '\n', '}',  0,    '|',  0,    0,
+    0,    0,    0,    0,    0,    0,    '\b', 0,    0,    '1',  0,    '4',  '7',  0,    0,    0,
+    '0',  '.',  '2',  '5',  '6',  '8',  '\033',0,   0,    '+',  '3',  '-',  '*',  '9',  0,    0,
+    0,    0,    0,    247,  0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0};
+
+
+#define BUFFER_SIZE 12
 static volatile uint8_t buffer[BUFFER_SIZE];
 static volatile uint8_t head, tail;
 static volatile uint8_t teclaStatus = 0;
@@ -38,13 +50,18 @@ static volatile uint8_t disableisr;
 static volatile uint8_t fulldisableisr;
 static volatile uint16_t waitcounter;
 
+bool scrollk = false;
+bool future_scrollk = true;
 bool cpslk = false;
 bool future_cpslk = true;
+bool numlk = false;
+bool future_numlk = true;
 volatile uint16_t shift=0;
 volatile uint16_t modifs=0;
+volatile uint8_t  ledflags=0;
 
-#pragma GCC push_options
-#pragma GCC optimize ("O2")
+//#pragma GCC push_options
+//#pragma GCC optimize ("O2")
 
 
 
@@ -111,14 +128,24 @@ bool FoxPS2Keyboard::SendByteWithConfirm(byte b, byte ACK, byte Tries, unsigned 
 	return(false);
 }
 
-bool FoxPS2Keyboard::SetKeyboardLights(byte NumLock, byte CapsLock, byte ScrollLock)
+void FoxPS2Keyboard::setNumLock(bool flag)
+{
+  if( flag ){
+    ledflags |= NUM_LOCK;
+  }else{
+    ledflags &= !NUM_LOCK;
+  }
+
+}
+
+bool FoxPS2Keyboard::SetKeyboardLights() //byte NumLock, byte CapsLock, byte ScrollLock)
 {
 	byte b = 0;
-	if (NumLock != 0)
-		b |= 0x2;
-	if (CapsLock != 0)
+	if (ledflags & CAPS_LOCK)
 		b |= 0x4;
-	if (ScrollLock != 0)
+	if (ledflags & NUM_LOCK)
+		b |= 0x2;
+	if (ledflags & SCROLL_LOCK)
 		b |= 0x1;
 
 	if (SendByteWithConfirm(0xED, 0xFA, 1, 500) == false) //Change Lights
@@ -146,7 +173,7 @@ bool FoxPS2Keyboard::WaitForKeyboard()
 
 	return(true);
 }
-#pragma GCC pop_options
+//#pragma GCC pop_options
 
 byte FoxPS2Keyboard::GetScancode()
 {
@@ -155,10 +182,70 @@ byte FoxPS2Keyboard::GetScancode()
 	i = tail;
 	if (i == head) return 0;
 	i++;
+
 	if (i >= BUFFER_SIZE) i = 0;
 	c = buffer[i];
 	tail = i;
 	return (c);
+}
+
+byte FoxPS2Keyboard::GetCharcode()
+{
+	uint8_t c, i;
+
+	i = tail;
+	if (i == head) return 0;
+	i++;
+
+	if (i >= BUFFER_SIZE) i = 0;
+	c = buffer[i];
+	tail = i;
+
+  if (cpslk && (modifs&SHIFT) && (chrsNS[c] < 127) ){
+    //Serial.println(" caps modifs ");
+    return(chrsSH1[c]);
+  }else if(modifs&SHIFT) {
+    //Serial.print(" modifs ");
+    return( chrsSH[c]);
+  }else if (cpslk && chrsNS[c] < 127){
+    //Serial.println(" caps ");
+    return(toUpperCase(chrsNS[c]));
+  }else {
+    return(chrsNS[c]);
+  }
+
+	return (c);
+}
+
+void FoxPS2Keyboard::handleLeds()
+{   
+  if ( scrollk == future_scrollk ){
+    if ( future_scrollk )
+      ledflags |= SCROLL_LOCK;
+    else  
+      ledflags &= !SCROLL_LOCK;
+
+    future_scrollk = !future_scrollk;
+    SetKeyboardLights();
+  }
+  if ( cpslk == future_cpslk ){
+    if ( future_cpslk )
+      ledflags |= CAPS_LOCK;
+    else  
+      ledflags &= !CAPS_LOCK;
+
+    future_cpslk = !future_cpslk;
+    SetKeyboardLights();
+  }
+  if ( numlk == future_numlk ){
+    if ( future_numlk )
+      ledflags |= NUM_LOCK;
+    else  
+      ledflags &= !NUM_LOCK;
+
+    future_numlk = !future_numlk;
+    SetKeyboardLights();
+  }
 }
 
 void KeyboardISR() //FALLING EDGE
@@ -227,31 +314,36 @@ void KeyboardISR() //FALLING EDGE
 	}
 	bitcount++;
 	if (bitcount == 11){
-  if ( (teclaStatus == 1) || (incoming == 0xAA) || (incoming == 0xEE || (incoming == 0xFA)) ){
+    if (incoming == 0x12)
+      modifs |=SHIFT;
+    if ( (teclaStatus == 1) || (incoming == 0xAA) || (incoming == 0xEE || (incoming == 0xFA)) ){
       switch(incoming){
+        case 0x12:
+          modifs &= !SHIFT;
+          break;
         case 0x58:
           cpslk = !cpslk;
+          break;
+        case 0x77:
+          numlk = !numlk;
+          break;
+        case 0x7E:
+          scrollk = !scrollk;
           break;
         default:  
           uint8_t i = head + 1;
           if (i >= BUFFER_SIZE) i = 0;
           if (i != tail){
             buffer[i] = incoming;
-            //if(modifs&SHIFT) {
-            //    buffer[i] = chrsSH[incoming];
-            //}
-            //else if (cpslk && chrsNS[incoming] < 127){
-            //    buffer[i] = toUpperCase(chrsNS[incoming]);
-            //}
-            //else {
-            //    buffer[i] =  chrsNS[incoming];
-            //}
             head = i;
           }
       } 
+      //char fix[26];
+      //sprintf(fix,"h=%d t=%d \n",head,tail);
+      Serial.println(" ");
       teclaStatus = 0;
     }
-    //Serial.print(" [");    Serial.printincoming, 16);    Serial.print("] ");
+    Serial.print(" [");    Serial.print(incoming, 16);    Serial.print("] ");
     switch(incoming){
       case 0xF0:
         teclaStatus = 1;
@@ -276,5 +368,12 @@ FoxPS2Keyboard::FoxPS2Keyboard()
 	head = 0;
 	tail = 0;
 	fulldisableisr = 0;
+  ledflags = 0;
+  scrollk = false;
+  future_scrollk = true;
+  cpslk = false;
+  future_cpslk = true;
+  numlk = false;
+  future_numlk = true;
 	attachInterrupt(digitalPinToInterrupt(IRQPin), KeyboardISR, FALLING);
 }
